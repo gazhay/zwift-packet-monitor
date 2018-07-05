@@ -1,9 +1,18 @@
 const EventEmitter = require('events')
 const Cap = require('cap').Cap, decoders=require('cap').decoders, PROTOCOL=decoders.PROTOCOL
-const zwiftProtoRoot = require('zwift-mobile-api/src/zwiftProtoBuf')
+
+const fs = require('fs')
+const protobuf = require('protobufjs')
+const zwiftProtoRoot = protobuf.parse(fs.readFileSync(`${__dirname}/zwiftMessages.proto`), { keepCase: true }).root
+
 const buffer = new Buffer(65535)
 const clientToServerPacket = zwiftProtoRoot.lookup('ClientToServer')
 const serverToClientPacket = zwiftProtoRoot.lookup('ServerToClient')
+
+const payload105Packet = zwiftProtoRoot.lookup('Payload105')
+const payload5Packet = zwiftProtoRoot.lookup('Payload5')
+const payload2Packet = zwiftProtoRoot.lookup('Payload2')
+
 
 class ZwiftPacketMonitor extends EventEmitter {
   constructor (interfaceName) {
@@ -57,6 +66,42 @@ class ZwiftPacketMonitor extends EventEmitter {
               for (let player_state of packet.player_states) {
                 this.emit('incomingPlayerState', player_state, packet.world_time, ret.info.dstport, ret.info.dstaddr)
               }
+              for (let player_update of packet.player_updates) {
+                // console.log('incomingPlayerUpdate', player_update, packet.world_time)
+                let payload = {};
+                switch (player_update.tag3) {
+                    case 105: // player entered world
+                      payload = payload105Packet.decode(new Uint8Array(player_update.payload))
+                      this.emit('incomingPlayerEnteredWorld', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
+                      break
+                    case 5: // chat message
+                      payload = payload5Packet.decode(new Uint8Array(player_update.payload))
+                      this.emit('incomingPlayerSentMessage', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
+                      break
+                    case 2:
+                      payload = payload2Packet.decode(new Uint8Array(player_update.payload))
+                      break
+                    case 3:
+                      // nothing
+                      break
+                    case 109:
+                      // nothing
+                      break
+                    case 110:
+                      // nothing
+                      break
+                    default:
+                      //
+                      // console.log(`unknown type ${player_update.tag3}`)
+                      // console.log(player_update)
+                      // a bit of code to pick up data for analysis of unknown payload types:
+                      // fs.writeFileSync(`/temp/playerupdate_${player_update.tag1}_${player_update.tag3}.raw`, new Uint8Array(player_update.payload))
+                }
+                // if (payload) {
+                    // console.log('payload of incomingPlayerUpdate', payload)
+                    this.emit('incomingPlayerUpdate', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
+                // }
+              }  
               if (packet.num_msgs === packet.msgnum) {
                 this.emit('endOfBatch')
               }

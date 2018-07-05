@@ -21,6 +21,7 @@
   "homepage": "https://github.com/wiedmann/zwift-packet-monitor#readme",
   "dependencies": {
     "cap": "^0.2.0",
+    "protobufjs": "^6.8.6",
     "zwift-mobile-api": "^0.2.5"
   }
 }
