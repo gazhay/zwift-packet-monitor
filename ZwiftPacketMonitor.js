@@ -1,5 +1,11 @@
 const EventEmitter = require('events')
-const Cap = require('cap').Cap, decoders=require('cap').decoders, PROTOCOL=decoders.PROTOCOL
+
+try {
+  var Cap = require('cap').Cap;
+  var decoders=require('cap').decoders, PROTOCOL=decoders.PROTOCOL
+} catch (e) {
+  throw new Error('Probably missing WinPcap/Win10PCap/Npcap/libpcap')
+}
 
 const fs = require('fs')
 const protobuf = require('protobufjs')
