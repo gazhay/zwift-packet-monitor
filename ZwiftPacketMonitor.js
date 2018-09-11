@@ -164,12 +164,14 @@ class ZwiftPacketMonitor extends EventEmitter {
               } else if (!flagPSH && flagACK && this._tcpAssembledLen > 0) {
                 // intermediate packet of a sequence to be assembled
                 // first 2 bytes are part of content, too
-                buffer.slice(ret.offset, ret.offset + datalen).copy(this._tcpBuffer, this._tcpAssembledLen)
+                let b = buffer.slice(ret.offset, ret.offset + datalen)
+                b.copy(this._tcpBuffer, this._tcpAssembledLen)
                 this._tcpAssembledLen += datalen
               } else if (flagPSH && flagACK && this._tcpAssembledLen > 0 ) {
                 // last packet of a sequence to be assembled
                 // first 2 bytes are part of content, too
-                buffer.slice(ret.offset, ret.offset + datalen).copy(this._tcpBuffer, this._tcpAssembledLen)
+                let b = buffer.slice(ret.offset, ret.offset + datalen)
+                b.copy(this._tcpBuffer, this._tcpAssembledLen)
                 
                 packet = serverToClientPacket.decode(this._tcpBuffer)
 
@@ -177,7 +179,8 @@ class ZwiftPacketMonitor extends EventEmitter {
                 this._tcpAssembledLen = 0
               }
 
-              console.log(`ACK ${((ret.info.flags & 0x10) !== 0)} PSH  ${((ret.info.flags & 0x08) !== 0)} datalen ${datalen} ${l}`)
+              // primarily for tracking activity during debug:
+              // console.log(`ACK ${((ret.info.flags & 0x10) !== 0)} PSH  ${((ret.info.flags & 0x08) !== 0)} datalen ${datalen} ${l}`)
 
               if (packet) {
                 for (let player_state of packet.player_states) {
@@ -186,6 +189,12 @@ class ZwiftPacketMonitor extends EventEmitter {
                 for (let player_update of packet.player_updates) {
                   // console.log('incomingPlayerUpdate', player_update, packet.world_time)
                   let payload = {};
+                  // a bit of code for collecting payload for further inspection during debugging
+                  /*
+                  if (player_update.payload) {
+                    fs.writeFileSync(`/temp/proto.raw`, new Uint8Array(player_update.payload))
+                  }
+                  */
                   switch (player_update.tag3) {
                       case 105: // player entered world
                         payload = payload105Packet.decode(new Uint8Array(player_update.payload))

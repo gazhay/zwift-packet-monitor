@@ -1,7 +1,7 @@
 {
   "name": "zwift-packet-monitor",
-  "version": "0.1.5",
-  "description": "monitor Zwift UDP packets and emit events for player state updates",
+  "version": "0.2.0",
+  "description": "monitor Zwift UDP and TCP packets and emit events for player state updates",
   "main": "ZwiftPacketMonitor.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -9,17 +9,17 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wiedmann/zwift-packet-monitor.git"
+    "url": "git+https://github.com/jeroni7100/zwift-packet-monitor.git"
   },
   "keywords": [
     "zwift"
   ],
-  "author": "Christian Wiedmann",
+  "author": "Christian Wiedmann & Jesper Rosenlund Nielsen",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/wiedmann/zwift-packet-monitor/issues"
+    "url": "https://github.com/jeroni7100/zwift-packet-monitor/issues"
   },
-  "homepage": "https://github.com/wiedmann/zwift-packet-monitor#readme",
+  "homepage": "https://github.com/jeroni7100/zwift-packet-monitor#readme",
   "dependencies": {
     "cap": "^0.2.0",
     "protobufjs": "^6.8.8",
