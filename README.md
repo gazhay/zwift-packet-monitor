@@ -1,9 +1,18 @@
 # zwift-packet-monitor
 
-This module monitors Zwift UDP traffic and emits events for the player state updates.
+This module monitors Zwift UDP traffic on port 3022 and TCP traffic on port 3023 (both contains protobuf payloads) and emits events for
+
+- player state updates (incomingPlayerState and outgoingPlayerState)
+- ride ons (incomingPlayerGaveRideOn)
+- chat messages (incomingPlayerSentMessage)
+- player entered world (incomingPlayerEnteredWorld)
 
 ## Install
-On Windows this requires WinPcap. On other systems, libpcap should be installed.
+
+### Prerequisites
+On Windows this requires WinPcap, Win10PCap or Npcap. On other systems, libpcap should be installed.
+
+### Installation
 
 ```
 npm install zwift-packet-monitor
@@ -32,4 +41,11 @@ monitor.on('endOfBatch', () => {
 
 monitor.start()
 ```
+
+
+# Relevant links
+
+Npcap https://nmap.org/npcap/
+Win10Pcap http://www.win10pcap.org/
+WinPcap https://www.winpcap.org/
 
