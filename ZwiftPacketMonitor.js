@@ -28,6 +28,9 @@ class ZwiftPacketMonitor extends EventEmitter {
     this._cap = new Cap()
     this._linkType = null
     this._sequence = 0
+    // this._tcpSeqNo = 0
+    this._tcpAssembledLen = 0
+    this._tcpBuffer = null
     if (interfaceName.match(/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
       this._interfaceName = Cap.findDevice(interfaceName)
     } else {
@@ -134,75 +137,107 @@ class ZwiftPacketMonitor extends EventEmitter {
         } else if (ret.info.protocol === PROTOCOL.IP.TCP) {
           var datalen = ret.info.totallen - ret.hdrlen;
           // console.log('Decoding TCP ...');
-          // console.log(JSON.stringify(ret));
           ret = decoders.TCP(buffer, ret.offset);
-          // console.log(' from port: ' + ret.info.srcport + ' to port: ' + ret.info.dstport);
-          // console.log(JSON.stringify(ret));
           datalen -= ret.hdrlen;
-          // console.log(buffer.toString('binary', ret.offset, ret.offset + datalen));
           try {
-            if (ret.info.srcport === 3023) {
-              // if ((ret.info.flags & 0x18)) // Flags: 0x018 (PSH, ACK)
-					// final package in sequence
-				// if first package in sequence: First 2 bytes contain total size
-				// if intermediate package: first 2 bytes are part of content, too
-				// if final package (which is not the first): first 2 bytes are part of content
-        // 
+            if (ret.info.srcport === 3023 && datalen > 0) {
+              let packet = null
+        
+              let flagPSH = ((ret.info.flags & 0x08) !== 0)
+              let flagACK = ((ret.info.flags & 0x10) !== 0)
+
               let b = buffer.slice(ret.offset, ret.offset + 2)
-              let l = b.readInt16BE()
-              console.log(`ACK ${((ret.info.flags & 0x10) !== 0)} PSH  ${((ret.info.flags & 0x08) !== 0)} datalen ${datalen} ${l}`)
-              let packet = serverToClientPacket.decode(buffer.slice(ret.offset + 2, ret.offset + datalen - 2))
-              for (let player_state of packet.player_states) {
-                this.emit('incomingPlayerState', player_state, packet.world_time, ret.info.dstport, ret.info.dstaddr)
+              let l = 0
+              if (b) {
+                l = b.readInt16BE() // total length of the message is stored in first two bytes of first TCP packet
+                // if intermediate packet: first 2 bytes are part of content, too
+                // if final packet (which is not the first): first 2 bytes are part of content
               }
-              for (let player_update of packet.player_updates) {
-                // console.log('incomingPlayerUpdate', player_update, packet.world_time)
-                let payload = {};
-                switch (player_update.tag3) {
-                    case 105: // player entered world
-                      payload = payload105Packet.decode(new Uint8Array(player_update.payload))
-                      this.emit('incomingPlayerEnteredWorld', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                      break
-                    case 5: // chat message
-                      payload = payload5Packet.decode(new Uint8Array(player_update.payload))
-                      this.emit('incomingPlayerSentMessage', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                      break
-                    case 4: // ride on
-                      payload = payload4Packet.decode(new Uint8Array(player_update.payload))
-                      this.emit('incomingPlayerGaveRideOn', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                      break
-                    case 2:
-                      // payload = payload2Packet.decode(new Uint8Array(player_update.payload))
-                      // this.emit('incomingPayload2', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                      break
-                    case 3:
-                      // payload = payload3Packet.decode(new Uint8Array(player_update.payload))
-                      // this.emit('incomingPayload3', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                      break
-                    case 109:
-                      // nothing
-                      break
-                    case 110:
-                      // nothing
-                      break
-                    default:
-                      //
-                      // console.log(`unknown type ${player_update.tag3}`)
-                      // console.log(player_update)
-                      // a bit of code to pick up data for analysis of unknown payload types:
-                      // fs.writeFileSync(`/temp/playerupdate_${player_update.tag1}_${player_update.tag3}.raw`, new Uint8Array(player_update.payload))
+
+              if (flagPSH && flagACK && this._tcpAssembledLen == 0 && l == datalen - 2) {
+                // complete message in a single packet
+                packet = serverToClientPacket.decode(buffer.slice(ret.offset + 2, ret.offset + datalen - 2))
+              }
+
+              if (!flagPSH && flagACK && this._tcpAssembledLen == 0  && l > datalen - 2) {
+                // first packet of a sequence to be assembled
+                this._tcpBuffer = Buffer.concat([buffer.slice(ret.offset + 2, ret.offset + datalen - 2)], l)
+                this._tcpAssembledLen = datalen - 2
+              }
+              
+              if (!flagPSH && flagACK && this._tcpAssembledLen > 0) {
+                // intermediate packet of a sequence to be assembled
+                // first 2 bytes are part of content, too
+                buffer.slice(ret.offset, ret.offset + datalen).copy(this._tcpBuffer, this._tcpAssembledLen)
+                this._tcpAssembledLen += datalen
+              }
+              
+              if (flagPSH && flagACK && this._tcpAssembledLen > 0 ) {
+                // last packet of a sequence to be assembled
+                // first 2 bytes are part of content, too
+                buffer.slice(ret.offset, ret.offset + datalen).copy(this._tcpBuffer, this._tcpAssembledLen)
+                
+                packet = serverToClientPacket.decode(this._tcpBuffer)
+
+                // reset _tcpAssembledLen for next sequence to assemble
+                this._tcpAssembledLen = 0
+              }
+
+              console.log(`ACK ${((ret.info.flags & 0x10) !== 0)} PSH  ${((ret.info.flags & 0x08) !== 0)} datalen ${datalen} ${l}`)
+
+              if (packet) {
+                for (let player_state of packet.player_states) {
+                  this.emit('incomingPlayerState', player_state, packet.world_time, ret.info.dstport, ret.info.dstaddr)
                 }
-                // if (payload) {
-                    // console.log('payload of incomingPlayerUpdate', payload)
-                    this.emit('incomingPlayerUpdate', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                // }
-              }  
-              if (packet.num_msgs === packet.msgnum) {
-                this.emit('endOfBatch')
+                for (let player_update of packet.player_updates) {
+                  // console.log('incomingPlayerUpdate', player_update, packet.world_time)
+                  let payload = {};
+                  switch (player_update.tag3) {
+                      case 105: // player entered world
+                        payload = payload105Packet.decode(new Uint8Array(player_update.payload))
+                        this.emit('incomingPlayerEnteredWorld', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
+                        break
+                      case 5: // chat message
+                        payload = payload5Packet.decode(new Uint8Array(player_update.payload))
+                        this.emit('incomingPlayerSentMessage', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
+                        break
+                      case 4: // ride on
+                        payload = payload4Packet.decode(new Uint8Array(player_update.payload))
+                        this.emit('incomingPlayerGaveRideOn', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
+                        break
+                      case 2:
+                        // payload = payload2Packet.decode(new Uint8Array(player_update.payload))
+                        // this.emit('incomingPayload2', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
+                        break
+                      case 3:
+                        // payload = payload3Packet.decode(new Uint8Array(player_update.payload))
+                        // this.emit('incomingPayload3', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
+                        break
+                      case 109:
+                        // nothing
+                        break
+                      case 110:
+                        // nothing
+                        break
+                      default:
+                        //
+                        // console.log(`unknown type ${player_update.tag3}`)
+                        // console.log(player_update)
+                        // a bit of code to pick up data for analysis of unknown payload types:
+                        // fs.writeFileSync(`/temp/playerupdate_${player_update.tag1}_${player_update.tag3}.raw`, new Uint8Array(player_update.payload))
+                  }
+                  // if (payload) {
+                      // console.log('payload of incomingPlayerUpdate', payload)
+                      this.emit('incomingPlayerUpdate', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
+                  // }
+                }  
+                if (packet.num_msgs === packet.msgnum) {
+                  this.emit('endOfBatch')
+                }
               }
             }
           } catch (ex) {
-            // console.log(ex)
+            console.log(ex)
           }
 
         }
