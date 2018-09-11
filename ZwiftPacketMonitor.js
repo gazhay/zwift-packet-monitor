@@ -157,22 +157,16 @@ class ZwiftPacketMonitor extends EventEmitter {
               if (flagPSH && flagACK && this._tcpAssembledLen == 0 && l == datalen - 2) {
                 // complete message in a single packet
                 packet = serverToClientPacket.decode(buffer.slice(ret.offset + 2, ret.offset + datalen - 2))
-              }
-
-              if (!flagPSH && flagACK && this._tcpAssembledLen == 0  && l > datalen - 2) {
+              } else if (!flagPSH && flagACK && this._tcpAssembledLen == 0  && l > datalen - 2) {
                 // first packet of a sequence to be assembled
                 this._tcpBuffer = Buffer.concat([buffer.slice(ret.offset + 2, ret.offset + datalen - 2)], l)
                 this._tcpAssembledLen = datalen - 2
-              }
-              
-              if (!flagPSH && flagACK && this._tcpAssembledLen > 0) {
+              } else if (!flagPSH && flagACK && this._tcpAssembledLen > 0) {
                 // intermediate packet of a sequence to be assembled
                 // first 2 bytes are part of content, too
                 buffer.slice(ret.offset, ret.offset + datalen).copy(this._tcpBuffer, this._tcpAssembledLen)
                 this._tcpAssembledLen += datalen
-              }
-              
-              if (flagPSH && flagACK && this._tcpAssembledLen > 0 ) {
+              } else if (flagPSH && flagACK && this._tcpAssembledLen > 0 ) {
                 // last packet of a sequence to be assembled
                 // first 2 bytes are part of content, too
                 buffer.slice(ret.offset, ret.offset + datalen).copy(this._tcpBuffer, this._tcpAssembledLen)
