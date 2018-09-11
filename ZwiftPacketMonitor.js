@@ -146,6 +146,10 @@ class ZwiftPacketMonitor extends EventEmitter {
               let flagPSH = ((ret.info.flags & 0x08) !== 0)
               let flagACK = ((ret.info.flags & 0x10) !== 0)
 
+              let flagsPshAck = (ret.info.flags == 0x18)
+
+              let flagsAck = (ret.info.flags == 0x10)
+
               let b = buffer.slice(ret.offset, ret.offset + 2)
               let l = 0
               if (b) {
@@ -154,20 +158,24 @@ class ZwiftPacketMonitor extends EventEmitter {
                 // if final packet (which is not the first): first 2 bytes are part of content
               }
 
-              if (flagPSH && flagACK && this._tcpAssembledLen == 0 && l == datalen - 2) {
-                // complete message in a single packet
-                packet = serverToClientPacket.decode(buffer.slice(ret.offset + 2, ret.offset + datalen - 2))
-              } else if (!flagPSH && flagACK && this._tcpAssembledLen == 0  && l > datalen - 2) {
+              if (flagsPshAck && this._tcpAssembledLen == 0) {
+                if (l == datalen -2) {
+                  // complete message in a single packet
+                  packet = serverToClientPacket.decode(buffer.slice(ret.offset + 2, ret.offset + datalen - 2))
+                }
+                // reset _tcpAssembledLen for next sequence to assemble
+                this._tcpAssembledLen = 0
+              } else if (flagsAck && this._tcpAssembledLen == 0  && l > datalen - 2) {
                 // first packet of a sequence to be assembled
                 this._tcpBuffer = Buffer.concat([buffer.slice(ret.offset + 2, ret.offset + datalen - 2)], l)
                 this._tcpAssembledLen = datalen - 2
-              } else if (!flagPSH && flagACK && this._tcpAssembledLen > 0) {
+              } else if (flagsAck && this._tcpAssembledLen > 0) {
                 // intermediate packet of a sequence to be assembled
                 // first 2 bytes are part of content, too
                 let b = buffer.slice(ret.offset, ret.offset + datalen)
                 b.copy(this._tcpBuffer, this._tcpAssembledLen)
                 this._tcpAssembledLen += datalen
-              } else if (flagPSH && flagACK && this._tcpAssembledLen > 0 ) {
+              } else if (flagsPshAck && this._tcpAssembledLen > 0 ) {
                 // last packet of a sequence to be assembled
                 // first 2 bytes are part of content, too
                 let b = buffer.slice(ret.offset, ret.offset + datalen)
