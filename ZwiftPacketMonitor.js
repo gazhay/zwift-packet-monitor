@@ -17,6 +17,7 @@ const serverToClientPacket = zwiftProtoRoot.lookup('ServerToClient')
 
 const payload105Packet = zwiftProtoRoot.lookup('Payload105')
 const payload5Packet = zwiftProtoRoot.lookup('Payload5')
+const payload4Packet = zwiftProtoRoot.lookup('Payload4')
 const payload2Packet = zwiftProtoRoot.lookup('Payload2')
 
 
@@ -48,6 +49,7 @@ class ZwiftPacketMonitor extends EventEmitter {
   }
 
   processPacket () {
+    // console.log('ZwiftPacketMonitor: processPacket()')
     if (this._linkType === 'ETHERNET') {
       let ret = decoders.Ethernet(buffer)
 
@@ -83,6 +85,10 @@ class ZwiftPacketMonitor extends EventEmitter {
                     case 5: // chat message
                       payload = payload5Packet.decode(new Uint8Array(player_update.payload))
                       this.emit('incomingPlayerSentMessage', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
+                      break
+                    case 4: // ride on
+                      payload = payload4Packet.decode(new Uint8Array(player_update.payload))
+                      this.emit('incomingPlayerGaveRideOn', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
                       break
                     case 2:
                       payload = payload2Packet.decode(new Uint8Array(player_update.payload))
