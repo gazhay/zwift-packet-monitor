@@ -161,6 +161,12 @@ class ZwiftPacketMonitor extends EventEmitter {
               if (flagsPshAck && this._tcpAssembledLen == 0) {
                 if (l == datalen -2) {
                   // complete message in a single packet
+                                    // a bit of code for collecting payload for further inspection during debugging
+                  // /*
+                  fs.writeFileSync(`c:/temp/proto.raw`, new Uint8Array(buffer.slice(ret.offset + 2, ret.offset + datalen - 2)))
+                  
+                  // */
+                  
                   packet = serverToClientPacket.decode(buffer.slice(ret.offset + 2, ret.offset + datalen - 2))
                 }
                 // reset _tcpAssembledLen for next sequence to assemble
@@ -169,18 +175,51 @@ class ZwiftPacketMonitor extends EventEmitter {
                 // first packet of a sequence to be assembled
                 this._tcpBuffer = Buffer.concat([buffer.slice(ret.offset + 2, ret.offset + datalen - 2)], l)
                 this._tcpAssembledLen = datalen - 2
-              } else if (flagsAck && this._tcpAssembledLen > 0) {
-                // intermediate packet of a sequence to be assembled
-                // first 2 bytes are part of content, too
-                let b = buffer.slice(ret.offset, ret.offset + datalen)
-                b.copy(this._tcpBuffer, this._tcpAssembledLen)
-                this._tcpAssembledLen += datalen
-              } else if (flagsPshAck && this._tcpAssembledLen > 0 ) {
+                console.log(`First packet in sequence (first ${this._tcpAssembledLen} bytes of ${l} bytes total`);
+                fs.writeFileSync(`c:/temp/proto-${this._tcpAssembledLen}.raw`, new Uint8Array(this._tcpBuffer))
+              } else if ((flagsAck && this._tcpAssembledLen > 0) || (flagsPshAck && this._tcpAssembledLen > 0 && this._tcpAssembledLen < this._tcpBuffer.length)) {
+                // could be both the last or an intermediate packet
+                if (this._tcpAssembledLen + datalen >= this._tcpBuffer.length) {
+                  // HOPEFULLY DEAD CODE !!!!!
+                  console.log('THIS OUGHT TO BE DEAD CODE!!!')
+                  // probably last packet in sequence anyway (despite no PSH flag) 
+                  // first 2 bytes are part of content, too
+                  let b = buffer.slice(ret.offset, ret.offset + datalen)
+                  b.copy(this._tcpBuffer, this._tcpAssembledLen)
+
+                  console.log(`Last packet in sequence (now ${this._tcpAssembledLen + datalen} bytes`);
+                  fs.writeFileSync(`c:/temp/proto-${this._tcpAssembledLen + datalen}-end.raw`, new Uint8Array(this._tcpBuffer))
+  
+                  fs.writeFileSync(`c:/temp/proto.raw`, new Uint8Array(this._tcpBuffer))
+                  console.log('Decoding assembled packets')
+                  packet = serverToClientPacket.decode(this._tcpBuffer)
+
+                  // reset _tcpAssembledLen for next sequence to assemble
+                  this._tcpAssembledLen = 0
+
+                } else {
+                  // intermediate packet of a sequence to be assembled
+                  // first 2 bytes are part of content, too
+                  let b = buffer.slice(ret.offset, ret.offset + datalen)
+                  b.copy(this._tcpBuffer, this._tcpAssembledLen)
+                  this._tcpAssembledLen += datalen
+                  console.log(`Intermediate packet in sequence (now ${this._tcpAssembledLen} bytes`);
+                  fs.writeFileSync(`c:/temp/proto-${this._tcpAssembledLen}.raw`, new Uint8Array(this._tcpBuffer))
+                }
+              } else if (flagsPshAck && this._tcpAssembledLen > 0 && this._tcpAssembledLen + datalen >= this._tcpBuffer.length) {  
+                // LAST PART OF CONDITION is necessary because there can be PSH flag on intermediate packets when the total message is very long
+                // e.g. right after Zwift launches it sends a large message (60k+ bytes)
+
                 // last packet of a sequence to be assembled
                 // first 2 bytes are part of content, too
                 let b = buffer.slice(ret.offset, ret.offset + datalen)
                 b.copy(this._tcpBuffer, this._tcpAssembledLen)
                 
+                console.log(`Last packet in sequence (now ${this._tcpAssembledLen + datalen} bytes`);
+                fs.writeFileSync(`c:/temp/proto-${this._tcpAssembledLen + datalen}-end.raw`, new Uint8Array(this._tcpBuffer))
+
+                fs.writeFileSync(`c:/temp/proto.raw`, new Uint8Array(this._tcpBuffer))
+                console.log('Decoding assembled packets')
                 packet = serverToClientPacket.decode(this._tcpBuffer)
 
                 // reset _tcpAssembledLen for next sequence to assemble
@@ -188,14 +227,14 @@ class ZwiftPacketMonitor extends EventEmitter {
               }
 
               // primarily for tracking activity during debug:
-              // console.log(`ACK ${((ret.info.flags & 0x10) !== 0)} PSH  ${((ret.info.flags & 0x08) !== 0)} datalen ${datalen} ${l}`)
+              console.log(`ACK ${((ret.info.flags & 0x10) !== 0)} PSH  ${((ret.info.flags & 0x08) !== 0)} datalen ${datalen} ${l}`)
 
               if (packet) {
                 for (let player_state of packet.player_states) {
                   this.emit('incomingPlayerState', player_state, packet.world_time, ret.info.dstport, ret.info.dstaddr)
                 }
                 for (let player_update of packet.player_updates) {
-                  // console.log('incomingPlayerUpdate', player_update, packet.world_time)
+                  // console.log('incomingPlayerUpdate', player_update, player_update.tag3, packet.world_time)
                   let payload = {};
                   // a bit of code for collecting payload for further inspection during debugging
                   /*
@@ -203,7 +242,8 @@ class ZwiftPacketMonitor extends EventEmitter {
                     fs.writeFileSync(`/temp/proto.raw`, new Uint8Array(player_update.payload))
                   }
                   */
-                  switch (player_update.tag3) {
+                  try {
+                    switch (player_update.tag3) {
                       case 105: // player entered world
                         payload = payload105Packet.decode(new Uint8Array(player_update.payload))
                         this.emit('incomingPlayerEnteredWorld', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
@@ -236,6 +276,12 @@ class ZwiftPacketMonitor extends EventEmitter {
                         // console.log(player_update)
                         // a bit of code to pick up data for analysis of unknown payload types:
                         // fs.writeFileSync(`/temp/playerupdate_${player_update.tag1}_${player_update.tag3}.raw`, new Uint8Array(player_update.payload))
+                    }
+                  } catch (ex) {
+                    // most likely an exception during decoding of payload
+                    fs.writeFileSync(`c:/temp/proto-payload-error.raw`, new Uint8Array(player_update.payload))
+                    console.log(ex)
+
                   }
                   // if (payload) {
                       // console.log('payload of incomingPlayerUpdate', payload)
@@ -249,6 +295,9 @@ class ZwiftPacketMonitor extends EventEmitter {
             }
           } catch (ex) {
             console.log(ex)
+            // reset _tcpAssembledLen and _tcpBuffer for next sequence to assemble in case of an exception
+            this._tcpAssembledLen = 0
+            this._tcpBuffer = null
           }
 
         }
