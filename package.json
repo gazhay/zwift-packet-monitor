@@ -1,11 +1,12 @@
 {
   "name": "zwift-packet-monitor",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "monitor Zwift UDP and TCP packets and emit events for player state updates",
   "main": "ZwiftPacketMonitor.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "test-live": "node test/test-live-zwift.js"
+    "test-live": "node test/test-live-zwift.js",
+    "preprocess": "preprocess ZwiftPacketMonitorDebug.js > ZwiftPacketMonitor.js"
   },
   "repository": {
     "type": "git",

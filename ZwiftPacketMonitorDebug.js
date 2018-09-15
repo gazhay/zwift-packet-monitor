@@ -54,14 +54,18 @@ class ZwiftPacketMonitor extends EventEmitter {
   }
 
   processPacket () {
+    // #ifdef DEBUG
     // console.log('ZwiftPacketMonitor: processPacket()')
+    // #endif
     if (this._linkType === 'ETHERNET') {
       let ret = decoders.Ethernet(buffer)
 
       if (ret.info.type === PROTOCOL.ETHERNET.IPV4) {
         ret = decoders.IPV4(buffer, ret.offset)
         if (ret.info.protocol === PROTOCOL.IP.UDP) {
+          // #ifdef DEBUG
           // console.log('Decoding UDP ...');
+          // #endif
           ret = decoders.UDP(buffer, ret.offset)
           try {
             if (ret.info.srcport === 3022) {
@@ -81,7 +85,9 @@ class ZwiftPacketMonitor extends EventEmitter {
                 this.emit('incomingPlayerState', player_state, packet.world_time, ret.info.dstport, ret.info.dstaddr)
               }
               for (let player_update of packet.player_updates) {
+                // #ifdef DEBUG
                 // console.log('incomingPlayerUpdate', player_update, packet.world_time)
+                // #endif
                 let payload = {};
                 switch (player_update.tag3) {
                     case 105: // player entered world
@@ -112,15 +118,14 @@ class ZwiftPacketMonitor extends EventEmitter {
                       break
                     default:
                       //
+                      // #ifdef DEBUG
                       // console.log(`unknown type ${player_update.tag3}`)
                       // console.log(player_update)
                       // a bit of code to pick up data for analysis of unknown payload types:
                       // fs.writeFileSync(`/temp/playerupdate_${player_update.tag1}_${player_update.tag3}.raw`, new Uint8Array(player_update.payload))
+                      // #endif
                 }
-                // if (payload) {
-                    // console.log('payload of incomingPlayerUpdate', payload)
-                    this.emit('incomingPlayerUpdate', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                // }
+                this.emit('incomingPlayerUpdate', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
               }  
               if (packet.num_msgs === packet.msgnum) {
                 this.emit('endOfBatch')
@@ -132,11 +137,15 @@ class ZwiftPacketMonitor extends EventEmitter {
               }
             }
           } catch (ex) {
+            // #ifdef DEBUG
             console.log(ex)
+            // #endif
           }
         } else if (ret.info.protocol === PROTOCOL.IP.TCP) {
           var datalen = ret.info.totallen - ret.hdrlen;
+          // #ifdef DEBUG
           // console.log('Decoding TCP ...');
+          // #endif
           ret = decoders.TCP(buffer, ret.offset);
           datalen -= ret.hdrlen;
           try {
@@ -161,12 +170,12 @@ class ZwiftPacketMonitor extends EventEmitter {
               if (flagsPshAck && this._tcpAssembledLen == 0) {
                 if (l == datalen -2) {
                   // complete message in a single packet
-                                    // a bit of code for collecting payload for further inspection during debugging
-                  // /*
+                  
+                  // #ifdef DEBUG
+                  // a bit of code for collecting payload for further inspection during debugging
                   fs.writeFileSync(`c:/temp/proto.raw`, new Uint8Array(buffer.slice(ret.offset + 2, ret.offset + datalen - 2)))
-                  
-                  // */
-                  
+                  // #endif
+
                   packet = serverToClientPacket.decode(buffer.slice(ret.offset + 2, ret.offset + datalen - 2))
                 }
                 // reset _tcpAssembledLen for next sequence to assemble
@@ -175,23 +184,29 @@ class ZwiftPacketMonitor extends EventEmitter {
                 // first packet of a sequence to be assembled
                 this._tcpBuffer = Buffer.concat([buffer.slice(ret.offset + 2, ret.offset + datalen - 2)], l)
                 this._tcpAssembledLen = datalen - 2
+                // #ifdef DEBUG
                 console.log(`First packet in sequence (first ${this._tcpAssembledLen} bytes of ${l} bytes total`);
                 fs.writeFileSync(`c:/temp/proto-${this._tcpAssembledLen}.raw`, new Uint8Array(this._tcpBuffer))
+                // #endif
               } else if ((flagsAck && this._tcpAssembledLen > 0) || (flagsPshAck && this._tcpAssembledLen > 0 && this._tcpAssembledLen < this._tcpBuffer.length)) {
                 // could be both the last or an intermediate packet
                 if (this._tcpAssembledLen + datalen >= this._tcpBuffer.length) {
                   // HOPEFULLY DEAD CODE !!!!!
+                  // #ifdef DEBUG
                   console.log('THIS OUGHT TO BE DEAD CODE!!!')
+                  // #endif
                   // probably last packet in sequence anyway (despite no PSH flag) 
                   // first 2 bytes are part of content, too
                   let b = buffer.slice(ret.offset, ret.offset + datalen)
                   b.copy(this._tcpBuffer, this._tcpAssembledLen)
 
+                  // #ifdef DEBUG
                   console.log(`Last packet in sequence (now ${this._tcpAssembledLen + datalen} bytes`);
                   fs.writeFileSync(`c:/temp/proto-${this._tcpAssembledLen + datalen}-end.raw`, new Uint8Array(this._tcpBuffer))
-  
+                  
                   fs.writeFileSync(`c:/temp/proto.raw`, new Uint8Array(this._tcpBuffer))
                   console.log('Decoding assembled packets')
+                  // #endif
                   packet = serverToClientPacket.decode(this._tcpBuffer)
 
                   // reset _tcpAssembledLen for next sequence to assemble
@@ -203,8 +218,10 @@ class ZwiftPacketMonitor extends EventEmitter {
                   let b = buffer.slice(ret.offset, ret.offset + datalen)
                   b.copy(this._tcpBuffer, this._tcpAssembledLen)
                   this._tcpAssembledLen += datalen
+                  // #ifdef DEBUG
                   console.log(`Intermediate packet in sequence (now ${this._tcpAssembledLen} bytes`);
                   fs.writeFileSync(`c:/temp/proto-${this._tcpAssembledLen}.raw`, new Uint8Array(this._tcpBuffer))
+                  // #endif
                 }
               } else if (flagsPshAck && this._tcpAssembledLen > 0 && this._tcpAssembledLen + datalen >= this._tcpBuffer.length) {  
                 // LAST PART OF CONDITION is necessary because there can be PSH flag on intermediate packets when the total message is very long
@@ -215,33 +232,41 @@ class ZwiftPacketMonitor extends EventEmitter {
                 let b = buffer.slice(ret.offset, ret.offset + datalen)
                 b.copy(this._tcpBuffer, this._tcpAssembledLen)
                 
+                // #ifdef DEBUG
                 console.log(`Last packet in sequence (now ${this._tcpAssembledLen + datalen} bytes`);
                 fs.writeFileSync(`c:/temp/proto-${this._tcpAssembledLen + datalen}-end.raw`, new Uint8Array(this._tcpBuffer))
-
+                
                 fs.writeFileSync(`c:/temp/proto.raw`, new Uint8Array(this._tcpBuffer))
                 console.log('Decoding assembled packets')
+                // #endif
                 packet = serverToClientPacket.decode(this._tcpBuffer)
 
                 // reset _tcpAssembledLen for next sequence to assemble
                 this._tcpAssembledLen = 0
               }
 
+              // #ifdef DEBUG
               // primarily for tracking activity during debug:
               console.log(`ACK ${((ret.info.flags & 0x10) !== 0)} PSH  ${((ret.info.flags & 0x08) !== 0)} datalen ${datalen} ${l}`)
+              // #endif
 
               if (packet) {
                 for (let player_state of packet.player_states) {
                   this.emit('incomingPlayerState', player_state, packet.world_time, ret.info.dstport, ret.info.dstaddr)
                 }
                 for (let player_update of packet.player_updates) {
+                  // #ifdef DEBUG
                   // console.log('incomingPlayerUpdate', player_update, player_update.tag3, packet.world_time)
+                  // #endif
                   let payload = {};
+                  // #ifdef DEBUG
                   // a bit of code for collecting payload for further inspection during debugging
                   /*
                   if (player_update.payload) {
                     fs.writeFileSync(`/temp/proto.raw`, new Uint8Array(player_update.payload))
                   }
                   */
+                  // #endif
                   try {
                     switch (player_update.tag3) {
                       case 105: // player entered world
@@ -272,21 +297,22 @@ class ZwiftPacketMonitor extends EventEmitter {
                         break
                       default:
                         //
+                        // #ifdef DEBUG
                         // console.log(`unknown type ${player_update.tag3}`)
                         // console.log(player_update)
                         // a bit of code to pick up data for analysis of unknown payload types:
                         // fs.writeFileSync(`/temp/playerupdate_${player_update.tag1}_${player_update.tag3}.raw`, new Uint8Array(player_update.payload))
+                        // #endif
                     }
                   } catch (ex) {
                     // most likely an exception during decoding of payload
+                    // #ifdef DEBUG
                     fs.writeFileSync(`c:/temp/proto-payload-error.raw`, new Uint8Array(player_update.payload))
                     console.log(ex)
+                    // #endif
 
                   }
-                  // if (payload) {
-                      // console.log('payload of incomingPlayerUpdate', payload)
-                      this.emit('incomingPlayerUpdate', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                  // }
+                  this.emit('incomingPlayerUpdate', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
                 }  
                 if (packet.num_msgs === packet.msgnum) {
                   this.emit('endOfBatch')
@@ -294,7 +320,9 @@ class ZwiftPacketMonitor extends EventEmitter {
               }
             }
           } catch (ex) {
+            // #ifdef DEBUG
             console.log(ex)
+            // #endif
             // reset _tcpAssembledLen and _tcpBuffer for next sequence to assemble in case of an exception
             this._tcpAssembledLen = 0
             this._tcpBuffer = null

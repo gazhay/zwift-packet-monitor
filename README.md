@@ -14,6 +14,21 @@ On Windows this requires WinPcap, Win10PCap or Npcap. On other systems, libpcap 
 
 ### Installation
 
+The fork by jeroni is not on NPM. Install with npm from GitHub
+
+```
+npm install https://github.com/jeroni7100/zwift-packet-monitor
+````
+
+or download/clone from GitHub and install directly from your local copy, for example like this if the copy resides in a sibling folder to your project:
+
+```
+npm install ../zwift-packet-monitor
+```
+
+
+The original version by wiedmann can be installed from NPM:
+
 ```
 npm install zwift-packet-monitor
 ```
@@ -46,6 +61,16 @@ monitor.start()
 # Relevant links
 
 Npcap https://nmap.org/npcap/
+
 Win10Pcap http://www.win10pcap.org/
+
 WinPcap https://www.winpcap.org/
 
+
+## Development tools
+
+Uses preprocessor.js (https://www.npmjs.com/package/preprocessor) to build ZwiftPacketMonitor.js from ZwiftPacketMonitorDebug.js
+ 
+```
+npm i -g preprocessor
+```
