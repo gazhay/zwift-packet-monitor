@@ -11,7 +11,7 @@ const fs = require('fs')
 const protobuf = require('protobufjs')
 const zwiftProtoRoot = protobuf.parse(fs.readFileSync(`${__dirname}/zwiftMessages.proto`), { keepCase: true }).root
 
-const buffer = new Buffer(65535)
+const buffer = new Buffer.alloc(65535)
 const clientToServerPacket = zwiftProtoRoot.lookup('ClientToServer')
 const serverToClientPacket = zwiftProtoRoot.lookup('ServerToClient')
 
