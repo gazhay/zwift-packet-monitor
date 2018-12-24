@@ -14,7 +14,13 @@ On Windows this requires WinPcap, Win10PCap or Npcap. On other systems, libpcap 
 
 ### Installation
 
-The fork by jeroni is not on NPM. Install with npm from GitHub
+The fork by jeroni is published as @zwfthcks/zwift-packet-monitor on NPM.
+
+```
+npm install @zwfthcks/zwift-packet-monitor
+````
+
+Alternatively, install with npm from GitHub
 
 ```
 npm install https://github.com/jeroni7100/zwift-packet-monitor
@@ -35,8 +41,10 @@ npm install zwift-packet-monitor
 
 ## Usage
 
+(Assumes installation from NPM)
+
 ```javascript
-const ZwiftPacketMonitor = require('zwift-packet-monitor')
+const ZwiftPacketMonitor = require('@zwfthcks/zwift-packet-monitor')
 
 // interface is cap interface name (can be device name or IP address)
 const monitor = new ZwiftPacketMonitor(interface)
