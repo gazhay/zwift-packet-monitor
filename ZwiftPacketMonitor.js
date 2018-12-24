@@ -40,9 +40,13 @@ class ZwiftPacketMonitor extends EventEmitter {
 
   start () {
     // this._linkType = this._cap.open(this._interfaceName, 'port 3022', 10 * 1024 * 1024, buffer)
-    this._linkType = this._cap.open(this._interfaceName, 'udp port 3022 or tcp port 3023', 10 * 1024 * 1024, buffer)
-    this._cap.setMinBytes && this._cap.setMinBytes(0)
-    this._cap.on('packet', this.processPacket.bind(this))
+    try {
+      this._linkType = this._cap.open(this._interfaceName, 'udp port 3022 or tcp port 3023', 10 * 1024 * 1024, buffer)
+      this._cap.setMinBytes && this._cap.setMinBytes(0)
+      this._cap.on('packet', this.processPacket.bind(this))
+    } catch (e) {
+      throw new Error('Error in cap.open - probably insufficient access rights')
+    }
   }
 
   stop () {
