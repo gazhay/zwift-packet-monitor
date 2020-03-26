@@ -24,6 +24,9 @@ const payload2Packet = zwiftProtoRoot.lookup('Payload2')
 
 class ZwiftPacketMonitor extends EventEmitter {
   constructor (interfaceName) {
+    // #ifdef DEBUG
+    console.log('ZwiftPacketMonitor: constructor()', interfaceName)
+    // #endif
     super()
     this._cap = new Cap()
     this._linkType = null
@@ -68,7 +71,7 @@ class ZwiftPacketMonitor extends EventEmitter {
         ret = decoders.IPV4(buffer, ret.offset)
         if (ret.info.protocol === PROTOCOL.IP.UDP) {
           // #ifdef DEBUG
-          // console.log('Decoding UDP ...');
+          console.log('Decoding UDP ...');
           // #endif
           ret = decoders.UDP(buffer, ret.offset)
           try {
@@ -90,7 +93,7 @@ class ZwiftPacketMonitor extends EventEmitter {
               }
               for (let player_update of packet.player_updates) {
                 // #ifdef DEBUG
-                // console.log('incomingPlayerUpdate', player_update, packet.world_time)
+                 console.log('incomingPlayerUpdate', player_update, packet.world_time)
                 // #endif
                 let payload = {};
                 switch (player_update.tag3) {
@@ -148,7 +151,7 @@ class ZwiftPacketMonitor extends EventEmitter {
         } else if (ret.info.protocol === PROTOCOL.IP.TCP) {
           var datalen = ret.info.totallen - ret.hdrlen;
           // #ifdef DEBUG
-          // console.log('Decoding TCP ...');
+          console.log('Decoding TCP ...');
           // #endif
           ret = decoders.TCP(buffer, ret.offset);
           datalen -= ret.hdrlen;
@@ -255,12 +258,16 @@ class ZwiftPacketMonitor extends EventEmitter {
               // #endif
 
               if (packet) {
+                // #ifdef DEBUG
+                console.log('has packet');
+                // #endif
                 for (let player_state of packet.player_states) {
                   this.emit('incomingPlayerState', player_state, packet.world_time, ret.info.dstport, ret.info.dstaddr)
                 }
                 for (let player_update of packet.player_updates) {
                   // #ifdef DEBUG
                   // console.log('incomingPlayerUpdate', player_update, player_update.tag3, packet.world_time)
+                   console.log('incomingPlayerUpdate', player_update.tag3)
                   // #endif
                   let payload = {};
                   // #ifdef DEBUG
@@ -278,7 +285,17 @@ class ZwiftPacketMonitor extends EventEmitter {
                         this.emit('incomingPlayerEnteredWorld', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
                         break
                       case 5: // chat message
+                        // #ifdef DEBUG
+                        // a bit of code for collecting payload for further inspection during debugging
+                        console.log('========== chat message ===============================================')
+                        fs.writeFileSync(`c:/temp/proto-payload.raw`, new Uint8Array(player_update.payload))
+                        // #endif
                         payload = payload5Packet.decode(new Uint8Array(player_update.payload))
+						            // #ifdef DEBUG
+					          	  console.log('decoded: ', payload);
+			          			  console.log('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^');
+					          		fs.writeFileSync(`c:/temp/proto-payload-decoded.raw`, new Uint8Array(payload))
+					            	// #endif
                         this.emit('incomingPlayerSentMessage', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
                         break
                       case 4: // ride on
