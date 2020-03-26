@@ -96,6 +96,7 @@ message Payload5 { // chat message
     string message = 6;
     string avatar = 7;
     int32 countryCode = 8;
+    int32 eventSubgroup = 11;
 }
 
 message Payload4 { // ride on
