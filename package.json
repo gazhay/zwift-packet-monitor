@@ -22,9 +22,8 @@
   },
   "homepage": "https://github.com/jeroni7100/zwift-packet-monitor#readme",
   "dependencies": {
-    "cap": "^0.2.0",
-    "protobufjs": "^6.8.8",
-    "zwift-mobile-api": "^0.2.5"
+    "cap": "^0.2.1",
+    "protobufjs": "^6.8.8"
   },
   "devDependencies": {
     "internal-ip": "^3.0.1"
