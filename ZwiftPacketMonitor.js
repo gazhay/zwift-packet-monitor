@@ -120,9 +120,12 @@ class ZwiftPacketMonitor extends EventEmitter {
                 this.emit('endOfBatch')
               }
             } else if (ret.info.dstport === 3022) {
-              let packet = clientToServerPacket.decode(buffer.slice(ret.offset, ret.offset + ret.info.length - 4))
-              if (packet.state) {
-                this.emit('outgoingPlayerState', packet.state, packet.world_time, ret.info.srcport, ret.info.srcaddr)
+              try {
+                let packet = clientToServerPacket.decode(buffer.slice(ret.offset, ret.offset + ret.info.length - 4))
+                if (packet.state) {
+                  this.emit('outgoingPlayerState', packet.state, packet.world_time, ret.info.srcport, ret.info.srcaddr)
+                }
+              } catch (ex) {
               }
             }
           } catch (ex) {
@@ -155,7 +158,10 @@ class ZwiftPacketMonitor extends EventEmitter {
                   // complete message in a single packet
                   
 
-                  packet = serverToClientPacket.decode(buffer.slice(ret.offset + 2, ret.offset + datalen - 2))
+                  try {
+                    packet = serverToClientPacket.decode(buffer.slice(ret.offset + 2, ret.offset + datalen))
+                  } catch (ex) {
+                  }
                 }
                 // reset _tcpAssembledLen for next sequence to assemble
                 this._tcpAssembledLen = 0
@@ -214,7 +220,7 @@ class ZwiftPacketMonitor extends EventEmitter {
                         break
                       case 5: // chat message
                         payload = payload5Packet.decode(new Uint8Array(player_update.payload))
-                        this.emit('incomingPlayerSentMessage', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
+						                        this.emit('incomingPlayerSentMessage', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
                         break
                       case 4: // ride on
                         payload = payload4Packet.decode(new Uint8Array(player_update.payload))

@@ -138,9 +138,17 @@ class ZwiftPacketMonitor extends EventEmitter {
                 this.emit('endOfBatch')
               }
             } else if (ret.info.dstport === 3022) {
-              let packet = clientToServerPacket.decode(buffer.slice(ret.offset, ret.offset + ret.info.length - 4))
-              if (packet.state) {
-                this.emit('outgoingPlayerState', packet.state, packet.world_time, ret.info.srcport, ret.info.srcaddr)
+              try {
+                let packet = clientToServerPacket.decode(buffer.slice(ret.offset, ret.offset + ret.info.length - 4))
+                if (packet.state) {
+                  this.emit('outgoingPlayerState', packet.state, packet.world_time, ret.info.srcport, ret.info.srcaddr)
+                }
+              } catch (ex) {
+                // #ifdef DEBUG
+                fs.writeFileSync(`c:/temp/proto-payload-error-outgoing-full-buffer.raw`, new Uint8Array(buffer))
+                fs.writeFileSync(`c:/temp/proto-payload-error-outgoing.raw`, new Uint8Array(buffer.slice(ret.offset, ret.offset + ret.info.length - 4)))
+                console.log(ret.offset, ret.info.length, ex)
+                // #endif
               }
             }
           } catch (ex) {
@@ -179,11 +187,20 @@ class ZwiftPacketMonitor extends EventEmitter {
                   // complete message in a single packet
                   
                   // #ifdef DEBUG
+                  console.log(`complete message in a single packet (${l} bytes total)`);
                   // a bit of code for collecting payload for further inspection during debugging
-                  fs.writeFileSync(`c:/temp/proto.raw`, new Uint8Array(buffer.slice(ret.offset + 2, ret.offset + datalen - 2)))
+                  fs.writeFileSync(`c:/temp/proto.raw`, new Uint8Array(buffer.slice(ret.offset + 2, ret.offset + datalen )))
                   // #endif
 
-                  packet = serverToClientPacket.decode(buffer.slice(ret.offset + 2, ret.offset + datalen - 2))
+                  try {
+                    packet = serverToClientPacket.decode(buffer.slice(ret.offset + 2, ret.offset + datalen))
+                  } catch (ex) {
+                    // #ifdef DEBUG
+                    fs.writeFileSync(`c:/temp/proto-payload-error-incoming-complete-full-buffer.raw`, new Uint8Array(buffer))
+                    fs.writeFileSync(`c:/temp/proto-payload-error-incoming-complete.raw`, new Uint8Array(buffer.slice(ret.offset + 2, ret.offset + datalen)))
+                    console.log(ret.offset, datalen, l, ex)
+                    // #endif
+                  }
                 }
                 // reset _tcpAssembledLen for next sequence to assemble
                 this._tcpAssembledLen = 0
