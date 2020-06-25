@@ -62,9 +62,14 @@ message PlayerUpdate {
     int32 tag3 = 3;
     bytes payload = 4;
     int64 tag5 = 5;
+    int64 tag6 = 6;
+    int64 tag7 = 7;
+    int64 tag8 = 8;
     int64 tag9 = 9;
+    int64 tag11 = 11;
     int64 tag12 = 12;
     int64 tag14 = 14;
+    int64 tag15 = 15;
 }
 
 message Payload105 { // player entered world ?
