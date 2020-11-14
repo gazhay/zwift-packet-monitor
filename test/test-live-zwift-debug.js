@@ -55,7 +55,7 @@ function start(ip) {
         
         
         
-        monitor.on('outgoingPlayerState', (playerState, serverWorldTime) => {
+        monitor.on('outgoingPlayerState', (playerState, serverWorldTime, dstPort, dstAddr) => {
             console.log('outgoingPlayerState');
             console.log(serverWorldTime, dstPort, dstAddr, playerState)
         })

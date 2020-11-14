@@ -138,9 +138,23 @@ class ZwiftPacketMonitor extends EventEmitter {
                 this.emit('endOfBatch')
               }
             } else if (ret.info.dstport === 3022) {
+              // #ifdef DEBUG
+              console.log('Decoding outgoing UDP package ...');
+              // #endif
               try {
-                let packet = clientToServerPacket.decode(buffer.slice(ret.offset, ret.offset + ret.info.length - 4))
-                if (packet.state) {
+                // 2020-11-14 extra handling added to handle what seems to be extra information preceeding the protobuf, added by Zwift since a few days ago
+                let skip = 5; // uncertain if this number should be fixed or if the first byte (so far only seen with value 0x06) really is the offset where protobuf starts, so add some extra checks just in case:
+                if (buffer.slice(ret.offset + ret.offset + skip, ret.offset + skip + 1).equals(Buffer.from([0x08]))) {
+                  // protobuf does seem to start after skip bytes
+                } else if (buffer.slice(ret.offset, ret.offset + 1).equals(Buffer.from([0x08]))) {
+                  // old format apparently, starting directly with protobuf instead of new header
+                  skip = 0
+                } else {
+                  // use the first byte to determine how many bytes to skip
+                  skip = buffer.slice(ret.offset, ret.offset + 1).readUIntBE(0, 1) - 1
+                }  
+                let packet = clientToServerPacket.decode(buffer.slice(ret.offset + skip, ret.offset + ret.info.length - 4))
+                if (packet && packet.state) {
                   this.emit('outgoingPlayerState', packet.state, packet.world_time, ret.info.srcport, ret.info.srcaddr)
                 }
               } catch (ex) {
