@@ -10,7 +10,7 @@ This module monitors Zwift UDP traffic on port 3022 and TCP traffic on port 3023
 ## Install
 
 ### Prerequisites
-On Windows this requires WinPcap, Win10PCap or Npcap. On other systems, libpcap should be installed.
+On Windows this requires Npcap installed with WinPcap API compatibility. On other systems, libpcap should be installed.
 
 ### Installation
 
@@ -69,10 +69,6 @@ monitor.start()
 # Relevant links
 
 Npcap https://nmap.org/npcap/
-
-Win10Pcap http://www.win10pcap.org/
-
-WinPcap https://www.winpcap.org/
 
 
 ## Development tools
