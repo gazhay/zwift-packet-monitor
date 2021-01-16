@@ -4,7 +4,7 @@ try {
   var Cap = require('cap').Cap;
   var decoders=require('cap').decoders, PROTOCOL=decoders.PROTOCOL
 } catch (e) {
-  throw new Error('Probably missing WinPcap/Win10PCap/Npcap/libpcap')
+  throw new Error('Probably missing Npcap/libpcap')
 }
 
 const fs = require('fs')
@@ -60,10 +60,76 @@ class ZwiftPacketMonitor extends EventEmitter {
     return  Cap.deviceList()
   }
 
+  _incomingPacketEmit(packet, info) {
+    if (!packet || !info) return;
+    
+    for (let player_state of packet.player_states) {
+      this.emit('incomingPlayerState', player_state, packet.world_time, info.dstport, info.dstaddr)
+    }
+
+    for (let player_update of packet.player_updates) {
+      // #ifdef DEBUG
+        console.log('incomingPlayerUpdate', player_update, packet.world_time)
+      // #endif
+      let payload = {};
+      try {
+        switch (player_update.tag3) {
+          case 105: // player entered world
+            payload = payload105Packet.decode(new Uint8Array(player_update.payload))
+            this.emit('incomingPlayerEnteredWorld', player_update, payload, packet.world_time, info.dstport, info.dstaddr)
+            break
+          case 5: // chat message
+            payload = payload5Packet.decode(new Uint8Array(player_update.payload))
+            this.emit('incomingPlayerSentMessage', player_update, payload, packet.world_time, info.dstport, info.dstaddr)
+            break
+          case 4: // ride on
+            payload = payload4Packet.decode(new Uint8Array(player_update.payload))
+            this.emit('incomingPlayerGaveRideOn', player_update, payload, packet.world_time, info.dstport, info.dstaddr)
+            break
+          case 2:
+            // payload = payload2Packet.decode(new Uint8Array(player_update.payload))
+            // this.emit('incomingPayload2', player_update, payload, packet.world_time, info.dstport, info.dstaddr)
+            break
+          case 3:
+            // payload = payload3Packet.decode(new Uint8Array(player_update.payload))
+            // this.emit('incomingPayload3', player_update, payload, packet.world_time, info.dstport, info.dstaddr)
+            break
+          case 109:
+            // nothing
+            break
+          case 110:
+            // nothing
+            break
+          default:
+          //
+          // #ifdef DEBUG
+          // console.log(`unknown type ${player_update.tag3}`)
+          // console.log(player_update)
+          // a bit of code to pick up data for analysis of unknown payload types:
+          // fs.writeFileSync(`/temp/playerupdate_${player_update.tag1}_${player_update.tag3}.raw`, new Uint8Array(player_update.payload))
+          // #endif
+        }
+      } catch (ex) {
+        // most likely an exception during decoding of payload
+        // #ifdef DEBUG
+        // fs.writeFileSync(`c:/temp/proto-payload-error.raw`, new Uint8Array(player_update.payload))
+        console.log(ex)
+        // #endif
+      }
+      this.emit('incomingPlayerUpdate', player_update, payload, packet.world_time, info.dstport, info.dstaddr)
+    }  
+
+    if (packet.num_msgs === packet.msgnum) {
+      this.emit('endOfBatch')
+    }
+
+  }
+
   processPacket () {
     // #ifdef DEBUG
     // console.log('ZwiftPacketMonitor: processPacket()')
     // #endif
+
     if (this._linkType === 'ETHERNET') {
       let ret = decoders.Ethernet(buffer)
 
@@ -88,55 +154,7 @@ class ZwiftPacketMonitor extends EventEmitter {
               }
               this._sequence = packet.seqno
               */
-              for (let player_state of packet.player_states) {
-                this.emit('incomingPlayerState', player_state, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-              }
-              for (let player_update of packet.player_updates) {
-                // #ifdef DEBUG
-                 console.log('incomingPlayerUpdate', player_update, packet.world_time)
-                // #endif
-                let payload = {};
-                switch (player_update.tag3) {
-                    case 105: // player entered world
-                      payload = payload105Packet.decode(new Uint8Array(player_update.payload))
-                      this.emit('incomingPlayerEnteredWorld', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                      break
-                    case 5: // chat message
-                      payload = payload5Packet.decode(new Uint8Array(player_update.payload))
-                      this.emit('incomingPlayerSentMessage', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                      break
-                    case 4: // ride on
-                      payload = payload4Packet.decode(new Uint8Array(player_update.payload))
-                      this.emit('incomingPlayerGaveRideOn', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                      break
-                    case 2:
-                      // payload = payload2Packet.decode(new Uint8Array(player_update.payload))
-                      // this.emit('incomingPayload2', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                      break
-                    case 3:
-                      // payload = payload3Packet.decode(new Uint8Array(player_update.payload))
-                      // this.emit('incomingPayload3', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                      break
-                    case 109:
-                      // nothing
-                      break
-                    case 110:
-                      // nothing
-                      break
-                    default:
-                      //
-                      // #ifdef DEBUG
-                      // console.log(`unknown type ${player_update.tag3}`)
-                      // console.log(player_update)
-                      // a bit of code to pick up data for analysis of unknown payload types:
-                      // fs.writeFileSync(`/temp/playerupdate_${player_update.tag1}_${player_update.tag3}.raw`, new Uint8Array(player_update.payload))
-                      // #endif
-                }
-                this.emit('incomingPlayerUpdate', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-              }  
-              if (packet.num_msgs === packet.msgnum) {
-                this.emit('endOfBatch')
-              }
+              this._incomingPacketEmit(packet, ret.info)
             } else if (ret.info.dstport === 3022) {
               // #ifdef DEBUG
               console.log('Decoding outgoing UDP package ...');
@@ -159,8 +177,8 @@ class ZwiftPacketMonitor extends EventEmitter {
                 }
               } catch (ex) {
                 // #ifdef DEBUG
-                fs.writeFileSync(`c:/temp/proto-payload-error-outgoing-full-buffer.raw`, new Uint8Array(buffer))
-                fs.writeFileSync(`c:/temp/proto-payload-error-outgoing.raw`, new Uint8Array(buffer.slice(ret.offset, ret.offset + ret.info.length - 4)))
+                // fs.writeFileSync(`c:/temp/proto-payload-error-outgoing-full-buffer.raw`, new Uint8Array(buffer))
+                // fs.writeFileSync(`c:/temp/proto-payload-error-outgoing.raw`, new Uint8Array(buffer.slice(ret.offset, ret.offset + ret.info.length - 4)))
                 console.log(ret.offset, ret.info.length, ex)
                 // #endif
               }
@@ -188,188 +206,81 @@ class ZwiftPacketMonitor extends EventEmitter {
 
               let flagsAck = (ret.info.flags == 0x10)
 
-              let b = buffer.slice(ret.offset, ret.offset + 2)
-              let l = 0
-              if (b) {
-                l = b.readUInt16BE() // total length of the message is stored in first two bytes of first TCP packet
-                // if intermediate packet: first 2 bytes are part of content, too
-                // if final packet (which is not the first): first 2 bytes are part of content
+              let tcpPayloadComplete = false
+
+              if (flagsPshAck && !this._tcpBuffer) {
+                // this TCP packet does not require assembling
+                // The TCP payload contains one or more messages
+                // <msg len> <msg> [<msg len> <msg>]*
+
+                this._tcpBuffer = buffer.slice(ret.offset, ret.offset + datalen)
+                this._tcpAssembledLen = datalen
+                tcpPayloadComplete = true
+                
+              } else if (flagsPshAck) {
+                // This is the last TCP packet in a sequence
+                
+                this._tcpBuffer = Buffer.concat([this._tcpBuffer, buffer.slice(ret.offset, ret.offset + datalen)])
+                this._tcpAssembledLen += datalen
+                tcpPayloadComplete = true
+
+              } else if (flagsAck && !this._tcpBuffer) {
+                // This is the first TCP packet in a sequence
+                
+                // TODO check that is is OK
+                this._tcpBuffer = Buffer.concat([buffer.slice(ret.offset, ret.offset + datalen)])
+                this._tcpAssembledLen = datalen
+              } else if (flagsAck) {
+                // This is an intermediate TCP packet in a sequence
+
+                this._tcpBuffer = Buffer.concat([this._tcpBuffer, buffer.slice(ret.offset, ret.offset + datalen)])
+                this._tcpAssembledLen += datalen
               }
 
-              if (flagsPshAck && this._tcpAssembledLen == 0) {
-                if (l == datalen -2) {
-                  // complete message in a single packet
-                  
-                  // #ifdef DEBUG
-                  console.log(`complete message in a single packet (${l} bytes total)`);
-                  // a bit of code for collecting payload for further inspection during debugging
-                  fs.writeFileSync(`c:/temp/proto.raw`, new Uint8Array(buffer.slice(ret.offset + 2, ret.offset + datalen )))
-                  // #endif
+              if (tcpPayloadComplete) {
+                // all payloads were assembled, now extract and process all messages in this._tcpBuffer
 
+                let offset = 0
+                let l = 0
+
+                while (offset + l < this._tcpAssembledLen) {
+                  let b = this._tcpBuffer.slice(offset, offset + 2)
+                  if (b) {
+                    l = b.readUInt16BE() // total length of the message is stored in first two bytes
+                  }
+  
                   try {
-                    packet = serverToClientPacket.decode(buffer.slice(ret.offset + 2, ret.offset + datalen))
+                    packet = serverToClientPacket.decode(this._tcpBuffer.slice(offset + 2, offset + 2 + l))
                   } catch (ex) {
                     // #ifdef DEBUG
-                    fs.writeFileSync(`c:/temp/proto-payload-error-incoming-complete-full-buffer.raw`, new Uint8Array(buffer))
-                    fs.writeFileSync(`c:/temp/proto-payload-error-incoming-complete.raw`, new Uint8Array(buffer.slice(ret.offset + 2, ret.offset + datalen)))
-                    console.log(ret.offset, datalen, l, ex)
+                    // fs.writeFileSync(`c:/temp/proto-payload-error-incoming-complete-full-buffer.raw`, new Uint8Array(this._tcpBuffer))
+                    // fs.writeFileSync(`c:/temp/proto-payload-error-incoming-complete.raw`, new Uint8Array(this._tcpBuffer.slice(offset + 2, offset + 2 + l)))
+                    console.log(offset, l, ex)
                     // #endif
                   }
-                }
-                // reset _tcpAssembledLen for next sequence to assemble
-                this._tcpAssembledLen = 0
-              } else if (flagsAck && this._tcpAssembledLen == 0  && l > datalen - 2) {
-                // first packet of a sequence to be assembled
-                this._tcpBuffer = Buffer.concat([buffer.slice(ret.offset + 2, ret.offset + datalen - 2)], l)
-                this._tcpAssembledLen = datalen - 2
-                // #ifdef DEBUG
-                console.log(`First packet in sequence (first ${this._tcpAssembledLen} bytes of ${l} bytes total`);
-                fs.writeFileSync(`c:/temp/proto-${this._tcpAssembledLen}.raw`, new Uint8Array(this._tcpBuffer))
-                // #endif
-              } else if ((flagsAck && this._tcpAssembledLen > 0) || (flagsPshAck && this._tcpAssembledLen > 0 && this._tcpAssembledLen < this._tcpBuffer.length)) {
-                // could be both the last or an intermediate packet
-                if (this._tcpAssembledLen + datalen >= this._tcpBuffer.length) {
-                  // HOPEFULLY DEAD CODE !!!!!
-                  // #ifdef DEBUG
-                  console.log('THIS OUGHT TO BE DEAD CODE!!!')
-                  // #endif
-                  // probably last packet in sequence anyway (despite no PSH flag) 
-                  // first 2 bytes are part of content, too
-                  let b = buffer.slice(ret.offset, ret.offset + datalen)
-                  b.copy(this._tcpBuffer, this._tcpAssembledLen)
 
-                  // #ifdef DEBUG
-                  console.log(`Last packet in sequence (now ${this._tcpAssembledLen + datalen} bytes`);
-                  fs.writeFileSync(`c:/temp/proto-${this._tcpAssembledLen + datalen}-end.raw`, new Uint8Array(this._tcpBuffer))
-                  
-                  fs.writeFileSync(`c:/temp/proto.raw`, new Uint8Array(this._tcpBuffer))
-                  console.log('Decoding assembled packets')
-                  // #endif
-                  packet = serverToClientPacket.decode(this._tcpBuffer)
+                  if (packet) {
+                    // #ifdef DEBUG
+                    console.log('has packet');
+                    // #endif
+                    this._incomingPacketEmit(packet, ret.info)
+                  }
 
-                  // reset _tcpAssembledLen for next sequence to assemble
-                  this._tcpAssembledLen = 0
-
-                } else {
-                  // intermediate packet of a sequence to be assembled
-                  // first 2 bytes are part of content, too
-                  let b = buffer.slice(ret.offset, ret.offset + datalen)
-                  b.copy(this._tcpBuffer, this._tcpAssembledLen)
-                  this._tcpAssembledLen += datalen
-                  // #ifdef DEBUG
-                  console.log(`Intermediate packet in sequence (now ${this._tcpAssembledLen} bytes`);
-                  fs.writeFileSync(`c:/temp/proto-${this._tcpAssembledLen}.raw`, new Uint8Array(this._tcpBuffer))
-                  // #endif
-                }
-              } else if (flagsPshAck && this._tcpAssembledLen > 0 && this._tcpAssembledLen + datalen >= this._tcpBuffer.length) {  
-                // LAST PART OF CONDITION is necessary because there can be PSH flag on intermediate packets when the total message is very long
-                // e.g. right after Zwift launches it sends a large message (60k+ bytes)
-
-                // last packet of a sequence to be assembled
-                // first 2 bytes are part of content, too
-                let b = buffer.slice(ret.offset, ret.offset + datalen)
-                b.copy(this._tcpBuffer, this._tcpAssembledLen)
+                  offset = offset + 2 + l
+                  l = 0
+                } // end while
+                // all packets in assembled _tcpBuffer are processed now
                 
-                // #ifdef DEBUG
-                console.log(`Last packet in sequence (now ${this._tcpAssembledLen + datalen} bytes`);
-                fs.writeFileSync(`c:/temp/proto-${this._tcpAssembledLen + datalen}-end.raw`, new Uint8Array(this._tcpBuffer))
-                
-                fs.writeFileSync(`c:/temp/proto.raw`, new Uint8Array(this._tcpBuffer))
-                console.log('Decoding assembled packets')
-                // #endif
-                packet = serverToClientPacket.decode(this._tcpBuffer)
-
-                // reset _tcpAssembledLen for next sequence to assemble
+                // reset _tcpAssembledLen and _tcpBuffer for next sequence to assemble
+                this._tcpBuffer = null
                 this._tcpAssembledLen = 0
               }
 
               // #ifdef DEBUG
               // primarily for tracking activity during debug:
-              console.log(`ACK ${((ret.info.flags & 0x10) !== 0)} PSH  ${((ret.info.flags & 0x08) !== 0)} datalen ${datalen} ${l}`)
+              console.log(`ACK ${((ret.info.flags & 0x10) !== 0)} PSH  ${((ret.info.flags & 0x08) !== 0)} datalen ${datalen}`)
               // #endif
 
-              if (packet) {
-                // #ifdef DEBUG
-                console.log('has packet');
-                // #endif
-                for (let player_state of packet.player_states) {
-                  this.emit('incomingPlayerState', player_state, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                }
-                for (let player_update of packet.player_updates) {
-                  // #ifdef DEBUG
-                  // console.log('incomingPlayerUpdate', player_update, player_update.tag3, packet.world_time)
-                   console.log('incomingPlayerUpdate', player_update.tag3)
-                  // #endif
-                  let payload = {};
-                  // #ifdef DEBUG
-                  // a bit of code for collecting payload for further inspection during debugging
-                  /*
-                  if (player_update.payload) {
-                    fs.writeFileSync(`/temp/proto.raw`, new Uint8Array(player_update.payload))
-                  }
-                  */
-                  // #endif
-                  try {
-                    switch (player_update.tag3) {
-                      case 105: // player entered world
-                        payload = payload105Packet.decode(new Uint8Array(player_update.payload))
-                        this.emit('incomingPlayerEnteredWorld', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                        break
-                      case 5: // chat message
-                        // #ifdef DEBUG
-                        // a bit of code for collecting payload for further inspection during debugging
-                        console.log('========== chat message ===============================================')
-                        fs.writeFileSync(`c:/temp/proto-payload.raw`, new Uint8Array(player_update.payload))
-                        // #endif
-                        payload = payload5Packet.decode(new Uint8Array(player_update.payload))
-						            // #ifdef DEBUG
-					          	  console.log('decoded: ', payload);
-			          			  console.log('^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^');
-					          		fs.writeFileSync(`c:/temp/proto-payload-decoded.raw`, new Uint8Array(payload))
-					            	// #endif
-                        this.emit('incomingPlayerSentMessage', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                        break
-                      case 4: // ride on
-                        payload = payload4Packet.decode(new Uint8Array(player_update.payload))
-                        this.emit('incomingPlayerGaveRideOn', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                        break
-                      case 2:
-                        // payload = payload2Packet.decode(new Uint8Array(player_update.payload))
-                        // this.emit('incomingPayload2', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                        break
-                      case 3:
-                        // payload = payload3Packet.decode(new Uint8Array(player_update.payload))
-                        // this.emit('incomingPayload3', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                        break
-                      case 109:
-                        // nothing
-                        break
-                      case 110:
-                        // nothing
-                        break
-                      default:
-                        //
-                        // #ifdef DEBUG
-                        // console.log(`unknown type ${player_update.tag3}`)
-                        // console.log(player_update)
-                        // a bit of code to pick up data for analysis of unknown payload types:
-                        // fs.writeFileSync(`/temp/playerupdate_${player_update.tag1}_${player_update.tag3}.raw`, new Uint8Array(player_update.payload))
-                        // #endif
-                    }
-                  } catch (ex) {
-                    // most likely an exception during decoding of payload
-                    // #ifdef DEBUG
-                    fs.writeFileSync(`c:/temp/proto-payload-error.raw`, new Uint8Array(player_update.payload))
-                    console.log(ex)
-                    // #endif
-
-                  }
-                  this.emit('incomingPlayerUpdate', player_update, payload, packet.world_time, ret.info.dstport, ret.info.dstaddr)
-                }  
-                if (packet.num_msgs === packet.msgnum) {
-                  this.emit('endOfBatch')
-                }
-              }
             }
           } catch (ex) {
             // #ifdef DEBUG
