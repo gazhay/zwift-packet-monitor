@@ -73,7 +73,7 @@ Npcap https://nmap.org/npcap/
 
 ## Development tools
 
-Uses preprocessor.js (https://www.npmjs.com/package/preprocessor) to build ZwiftPacketMonitor.js from ZwiftPacketMonitorDebug.js
+Uses preprocessor.js (https://www.npmjs.com/package/preprocessor) to build ZwiftPacketMonitor.js from ZwiftPacketMonitorSource.js
  
 ```
 npm i -g preprocessor

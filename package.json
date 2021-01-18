@@ -8,7 +8,9 @@
     "test-live": "node test/test-live-zwift.js",
     "test-live-outgoing": "node test/test-live-outgoing-player-state.js",
     "test-live-debug": "node test/test-live-zwift-debug.js",
-    "preprocess": "preprocess ZwiftPacketMonitorDebug.js > ZwiftPacketMonitor.js"
+    "preprocess": "preprocess ZwiftPacketMonitorSource.js . > ZwiftPacketMonitor.js",
+    "preprocess-debug": "preprocess ZwiftPacketMonitorSource.js . -DEBUG=true > ZwiftPacketMonitorDebug.js",
+    "preprocess-logger": "preprocess ZwiftPacketMonitorSource.js . -LOGGER=true > ZwiftPacketMonitorLogger.js"
   },
   "repository": {
     "type": "git",
