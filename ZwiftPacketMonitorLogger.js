@@ -24,9 +24,6 @@ const payload2Packet = zwiftProtoRoot.lookup('Payload2')
 
 class ZwiftPacketMonitor extends EventEmitter {
   constructor (interfaceName) {
-    // #ifdef DEBUG
-    console.log('ZwiftPacketMonitor: constructor()', interfaceName)
-    // #endif
     super()
     this._cap = new Cap()
     this._linkType = null
@@ -84,9 +81,6 @@ class ZwiftPacketMonitor extends EventEmitter {
     }
 
     for (let player_update of packet.player_updates) {
-      // #ifdef DEBUG
-        console.log('incomingPlayerUpdate', player_update, packet.world_time)
-      // #endif
       let payload = {};
       try {
         switch (player_update.tag3) {
@@ -118,19 +112,9 @@ class ZwiftPacketMonitor extends EventEmitter {
             break
           default:
           //
-          // #ifdef DEBUG
-          // console.log(`unknown type ${player_update.tag3}`)
-          // console.log(player_update)
-          // a bit of code to pick up data for analysis of unknown payload types:
-          // fs.writeFileSync(`/temp/playerupdate_${player_update.tag1}_${player_update.tag3}.raw`, new Uint8Array(player_update.payload))
-          // #endif
         }
       } catch (ex) {
         // most likely an exception during decoding of payload
-        // #ifdef DEBUG
-        // fs.writeFileSync(`c:/temp/proto-payload-error.raw`, new Uint8Array(player_update.payload))
-        console.log(ex)
-        // #endif
       }
       this.emit('incomingPlayerUpdate', player_update, payload, packet.world_time, info.dstport, info.dstaddr)
     }  
@@ -142,9 +126,6 @@ class ZwiftPacketMonitor extends EventEmitter {
   }
 
   processPacket () {
-    // #ifdef DEBUG
-    // console.log('ZwiftPacketMonitor: processPacket()')
-    // #endif
 
     if (this._linkType === 'ETHERNET') {
       let ret = decoders.Ethernet(buffer)
@@ -152,9 +133,6 @@ class ZwiftPacketMonitor extends EventEmitter {
       if (ret.info.type === PROTOCOL.ETHERNET.IPV4) {
         ret = decoders.IPV4(buffer, ret.offset)
         if (ret.info.protocol === PROTOCOL.IP.UDP) {
-          // #ifdef DEBUG
-          console.log('Decoding UDP ...');
-          // #endif
           ret = decoders.UDP(buffer, ret.offset)
           try {
             if (ret.info.srcport === 3022) {
@@ -173,9 +151,6 @@ class ZwiftPacketMonitor extends EventEmitter {
               */
               this._incomingPacketEmit(packet, ret.info)
             } else if (ret.info.dstport === 3022) {
-              // #ifdef DEBUG
-              console.log('Decoding outgoing UDP package ...');
-              // #endif
               try {
                 // 2020-11-14 extra handling added to handle what seems to be extra information preceeding the protobuf
                 let skip = 5; // uncertain if this number should be fixed or 
@@ -195,21 +170,12 @@ class ZwiftPacketMonitor extends EventEmitter {
                   this.emit('outgoingPlayerState', packet.state, packet.world_time, ret.info.srcport, ret.info.srcaddr)
                 }
               } catch (ex) {
-                // #ifdef DEBUG
-                // console.log(ret.offset, ret.info.length, ex)
-                // #endif
               }
             }
           } catch (ex) {
-            // #ifdef DEBUG
-            console.log(ex)
-            // #endif
           }
         } else if (ret.info.protocol === PROTOCOL.IP.TCP) {
           var datalen = ret.info.totallen - ret.hdrlen;
-          // #ifdef DEBUG
-          console.log('Decoding TCP ...');
-          // #endif
           ret = decoders.TCP(buffer, ret.offset);
           datalen -= ret.hdrlen;
           try {
@@ -262,14 +228,9 @@ class ZwiftPacketMonitor extends EventEmitter {
                   try {
                     packet = this._decodeIncoming(this._tcpBuffer.slice(offset + 2, offset + 2 + l))
                   } catch (ex) {
-                    // #ifdef DEBUG
-                    // #endif
                   }
 
                   if (packet) {
-                    // #ifdef DEBUG
-                    console.log('has packet');
-                    // #endif
                     this._incomingPacketEmit(packet, ret.info)
                   }
 
@@ -283,16 +244,9 @@ class ZwiftPacketMonitor extends EventEmitter {
                 this._tcpAssembledLen = 0
               }
 
-              // #ifdef DEBUG
-              // primarily for tracking activity during debug:
-              console.log(`ACK ${((ret.info.flags & 0x10) !== 0)} PSH  ${((ret.info.flags & 0x08) !== 0)} datalen ${datalen}`)
-              // #endif
 
             }
           } catch (ex) {
-            // #ifdef DEBUG
-            console.log(ex)
-            // #endif
             // reset _tcpAssembledLen and _tcpBuffer for next sequence to assemble in case of an exception
             this._tcpAssembledLen = 0
             this._tcpBuffer = null
@@ -304,7 +258,6 @@ class ZwiftPacketMonitor extends EventEmitter {
   }
 }
 
-// #ifdef LOGGER
 class ZwiftPacketMonitorLogger extends ZwiftPacketMonitor {
   constructor(interfaceName, options = {}) {
     super(interfaceName)
@@ -352,10 +305,6 @@ class ZwiftPacketMonitorLogger extends ZwiftPacketMonitor {
     return result
   }
 }
-// #endif
 
-// #ifdef LOGGER
 module.exports = ZwiftPacketMonitorLogger
-// #else
-module.exports = ZwiftPacketMonitor
-// #endif
+

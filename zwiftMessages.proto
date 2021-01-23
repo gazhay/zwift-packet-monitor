@@ -29,6 +29,8 @@ message PlayerState {
     int32 groupId = 29;
     int64 sport = 31;
     float f34 = 34;  // actual distance moved included lateral movement
+    int32 f35 = 35;
+    int32 f38 = 38;
 }
 
 message ClientToServer {

@@ -8,6 +8,7 @@
     "test-live": "node test/test-live-zwift.js",
     "test-live-outgoing": "node test/test-live-outgoing-player-state.js",
     "test-live-debug": "node test/test-live-zwift-debug.js",
+    "test-live-logger": "node test/test-live-zwift-logger.js",
     "preprocess": "preprocess ZwiftPacketMonitorSource.js . > ZwiftPacketMonitor.js",
     "preprocess-debug": "preprocess ZwiftPacketMonitorSource.js . -DEBUG=true > ZwiftPacketMonitorDebug.js",
     "preprocess-logger": "preprocess ZwiftPacketMonitorSource.js . -LOGGER=true > ZwiftPacketMonitorLogger.js"
@@ -27,7 +28,7 @@
   "homepage": "https://github.com/jeroni7100/zwift-packet-monitor#readme",
   "dependencies": {
     "cap": "^0.2.1",
-    "protobufjs": "^6.9.0"
+    "protobufjs": "^6.10.2"
   },
   "devDependencies": {
     "internal-ip": "^3.0.1"
