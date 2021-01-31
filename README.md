@@ -74,7 +74,13 @@ Npcap https://nmap.org/npcap/
 ## Development tools
 
 Uses preprocessor.js (https://www.npmjs.com/package/preprocessor) to build ZwiftPacketMonitor.js from ZwiftPacketMonitorSource.js
- 
+
+Install it with: 
 ```
 npm i -g preprocessor
+```
+
+Build with
+```
+npm run preprocess
 ```
