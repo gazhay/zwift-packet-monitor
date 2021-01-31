@@ -1,4 +1,6 @@
 test/
+ZwiftPacketMonitorSource.js
 ZwiftPacketMonitorDebug.js
+ZwiftPacketMonitorLogger.js
 .vscode/
 .gitignore
