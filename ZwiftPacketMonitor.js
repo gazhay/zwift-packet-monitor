@@ -31,10 +31,12 @@ class ZwiftPacketMonitor extends EventEmitter {
     // this._tcpSeqNo = 0
     this._tcpAssembledLen = 0
     this._tcpBuffer = null
-    if (interfaceName.match(/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) {
-      this._interfaceName = Cap.findDevice(interfaceName)
-    } else {
-      this._interfaceName = interfaceName
+
+    try{
+        if (!interfaceName){ this._interfaceName = Cap.findDevice() } else
+        if (interfaceName.match(/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/)) { this._interfaceName = Cap.findDevice(interfaceName) }
+    } catch {
+        this._interfaceName = interfaceName
     }
 
   }
@@ -75,7 +77,7 @@ class ZwiftPacketMonitor extends EventEmitter {
 
   _incomingPacketEmit(packet, info) {
     if (!packet || !info) return;
-    
+
     for (let player_state of packet.player_states) {
       this.emit('incomingPlayerState', player_state, packet.world_time, info.dstport, info.dstaddr)
     }
@@ -117,7 +119,7 @@ class ZwiftPacketMonitor extends EventEmitter {
         // most likely an exception during decoding of payload
       }
       this.emit('incomingPlayerUpdate', player_update, payload, packet.world_time, info.dstport, info.dstaddr)
-    }  
+    }
 
     if (packet.num_msgs === packet.msgnum) {
       this.emit('endOfBatch')
@@ -153,8 +155,8 @@ class ZwiftPacketMonitor extends EventEmitter {
             } else if (ret.info.dstport === 3022) {
               try {
                 // 2020-11-14 extra handling added to handle what seems to be extra information preceeding the protobuf
-                let skip = 5; // uncertain if this number should be fixed or 
-                // ...if the first byte(so far only seen with value 0x06) 
+                let skip = 5; // uncertain if this number should be fixed or
+                // ...if the first byte(so far only seen with value 0x06)
                 // really is the offset where protobuf starts, so add some extra checks just in case:
                 if (buffer.slice(ret.offset + skip, ret.offset + skip + 1).equals(Buffer.from([0x08]))) {
                   // protobuf does seem to start after skip bytes
@@ -164,7 +166,7 @@ class ZwiftPacketMonitor extends EventEmitter {
                 } else {
                   // use the first byte to determine how many bytes to skip
                   skip = buffer.slice(ret.offset, ret.offset + 1).readUIntBE(0, 1) - 1
-                }  
+                }
                 let packet = this._decodeOutgoing(buffer.slice(ret.offset + skip, ret.offset + ret.info.length - 4))
                 if (packet && packet.state) {
                   this.emit('outgoingPlayerState', packet.state, packet.world_time, ret.info.srcport, ret.info.srcaddr)
@@ -181,7 +183,7 @@ class ZwiftPacketMonitor extends EventEmitter {
           try {
             if (ret.info.srcport === 3023 && datalen > 0) {
               let packet = null
-        
+
               let flagPSH = ((ret.info.flags & 0x08) !== 0)
               let flagACK = ((ret.info.flags & 0x10) !== 0)
 
@@ -224,7 +226,7 @@ class ZwiftPacketMonitor extends EventEmitter {
                   if (b) {
                     l = b.readUInt16BE() // total length of the message is stored in first two bytes
                   }
-  
+
                   try {
                     packet = this._decodeIncoming(this._tcpBuffer.slice(offset + 2, offset + 2 + l))
                   } catch (ex) {
@@ -238,7 +240,7 @@ class ZwiftPacketMonitor extends EventEmitter {
                   l = 0
                 } // end while
                 // all packets in assembled _tcpBuffer are processed now
-                
+
                 // reset _tcpAssembledLen and _tcpBuffer for next sequence to assemble
                 this._tcpBuffer = null
                 this._tcpAssembledLen = 0
@@ -253,11 +255,10 @@ class ZwiftPacketMonitor extends EventEmitter {
           }
 
         }
-      } 
+      }
     }
   }
 }
 
 
 module.exports = ZwiftPacketMonitor
-
